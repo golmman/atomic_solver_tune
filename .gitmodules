@@ -1,0 +1,3 @@
+[submodule "atomic_solver"]
+	path = atomic_solver
+	url = git@github.com:golmman/atomic_solver.git
