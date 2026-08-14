@@ -109,7 +109,12 @@ class CMAEvolutionStrategy:
         lambda_=None,
         mu=None,
         seed=None,
+        best_f=None,
+        best_x=None,
     ):
+        """Initialize CMA-ES.  If ``best_f`` and ``best_x`` are supplied, they
+        seed the global best known candidate.  This is used when warm-starting
+        from a previous run so the search never loses a good solution."""
         self.n = len(x0)
         if self.n == 0:
             raise ValueError("x0 must have at least one dimension")
@@ -157,8 +162,8 @@ class CMAEvolutionStrategy:
         self.max_evals = max_evals
 
         self.generation = 0
-        self.best_x = None
-        self.best_f = float("inf")
+        self.best_x = list(best_x) if best_x is not None and best_f is not None else None
+        self.best_f = float(best_f) if best_x is not None and best_f is not None else float("inf")
         self.history = []  # (generation, mean_f, best_f)
 
     def _sample(self):

@@ -84,7 +84,7 @@ def save_generation(output_dir, gen, cma, eval_details):
         json.dump(hist, f, indent=2)
 
 
-def save_best(output_dir, cma, best_eval_info):
+def save_best(output_dir, cma, best_eval_info, extra_evals=0):
     """Write the best config found so far to TOML and a summary JSON."""
     if cma.best_x is None:
         return
@@ -96,7 +96,7 @@ def save_best(output_dir, cma, best_eval_info):
         "best_f": cma.best_f,
         "best_x": cma.best_x,
         "sigma": cma.sigma,
-        "evals": cma.counteval,
+        "evals": cma.counteval + extra_evals,
         "params": params,
         "info": best_eval_info,
     }
@@ -178,22 +178,53 @@ def main():
     if sigma0 is None:
         sigma0 = 0.3
 
+    # For a warm start, re-evaluate the starting point so we have a fresh loss
+    # and the benchmark details for the global best.  This prevents a
+    # regression where CMA-ES loses the previous best because it was never
+    # evaluated in the new run.
+    seed_best_f = None
+    seed_best_x = None
+    seed_eval_info = {}
+    extra_evals = 0
+    if args.resume or args.seed_config:
+        print("Evaluating warm-start seed candidate...")
+        loss, details = eval_mod.evaluate_candidate(
+            x0,
+            baseline,
+            args.benchmark,
+            suite=args.suite,
+            timeout_sec=args.timeout,
+            runs=args.runs,
+            p_wrong=args.p_wrong,
+            p_timeout=args.p_timeout,
+        )
+        if math.isfinite(loss):
+            seed_best_f = loss
+            seed_best_x = x0[:]
+            seed_eval_info = details
+            extra_evals = 1
+            print(f"seed_f={seed_best_f:.4f} child={details.get('total_child_evals', 0)}")
+        else:
+            print("Warning: seed candidate is infeasible; starting fresh")
+
     cma = cmaes.CMAEvolutionStrategy(
         x0,
         sigma0,
         max_evals=args.max_evals,
         seed=args.seed,
+        best_f=seed_best_f,
+        best_x=seed_best_x,
     )
 
     print(f"CMA-ES n={n} lambda={cma.lambd} mu={cma.mu} max_evals={args.max_evals}")
     print(f"output_dir={args.output_dir}")
     print(f"baseline={args.baseline} suite={args.suite} timeout={args.timeout} workers={args.workers}")
     if args.resume:
-        print(f"resume={args.resume} source={resume_info.get('source')} start_f={resume_info.get('best_f')} start_sigma={sigma0}")
+        print(f"resume={args.resume} source={resume_info.get('source')} start_f={seed_best_f} start_sigma={sigma0}")
     elif args.seed_config:
-        print(f"seed_config={args.seed_config} start_sigma={sigma0}")
+        print(f"seed_config={args.seed_config} start_f={seed_best_f} start_sigma={sigma0}")
 
-    best_eval_info = {}
+    best_eval_info = seed_eval_info
 
     while cma.counteval < args.max_evals:
         gen = cma.generation + 1
@@ -226,8 +257,9 @@ def main():
             best_eval_info = details[gen_best_idx]
 
         elapsed = time.time() - start
+        total_evals = cma.counteval + extra_evals
         print(
-            f"gen={gen} evals={cma.counteval} best={cma.best_f:.4f} "
+            f"gen={gen} evals={total_evals} best={cma.best_f:.4f} "
             f"mean={cma.history[-1][1]:.4f} sigma={cma.sigma:.4f} "
             f"ok={ok} wrong={wrong} timeouts={timeouts} "
             f"total_child={total_child} t={elapsed:.1f}s"
@@ -235,9 +267,9 @@ def main():
 
         save_generation(args.output_dir, gen, cma, details)
         if gen % 5 == 0 or cma.counteval >= args.max_evals:
-            save_best(args.output_dir, cma, best_eval_info)
+            save_best(args.output_dir, cma, best_eval_info, extra_evals)
 
-    save_best(args.output_dir, cma, best_eval_info)
+    save_best(args.output_dir, cma, best_eval_info, extra_evals)
     print("Done. Best config written to", os.path.join(args.output_dir, "best_config.toml"))
 
 
