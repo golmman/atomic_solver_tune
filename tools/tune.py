@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import os
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -111,6 +112,24 @@ def main():
         raise FileNotFoundError(f"baseline not found: {args.baseline}")
     if not os.path.exists(args.benchmark):
         raise FileNotFoundError(f"benchmark binary not found: {args.benchmark}")
+
+    # Fail fast with a helpful message if the binary was built for a different
+    # platform (e.g. copied from a Linux container to macOS).
+    try:
+        subprocess.run(
+            [args.benchmark, "--help"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            f"Cannot execute benchmark binary {args.benchmark!r}: {exc}. "
+            "It may have been built for a different platform. "
+            "Rebuild with: cd atomic_solver && cargo clean && "
+            "cargo build --release --example benchmark"
+        ) from exc
 
     baseline = eval_mod.load_baseline(args.baseline)
     n = len(SCORER_DEFAULTS)

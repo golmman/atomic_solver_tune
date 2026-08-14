@@ -51,6 +51,7 @@ commit, so results from different solver versions do not overwrite each other.
 | `make validate-thorough` | Benchmark the latest tuned config on `thorough`                                 |
 | `make test`              | Compile-check the Python tools and `cargo check` the solver                     |
 | `make clean`             | Remove `tools/runs/`, `tools/__pycache__/`, and `baseline_quick_*.json`          |
+| `make distclean`         | `make clean` plus `cargo clean` in `atomic_solver` (use after switching host OS/arch) |
 
 ## Submodule note
 

@@ -45,6 +45,7 @@ make validate-quick # benchmark tools/runs/<commit>/latest/best_config.toml on q
 make validate-thorough
 make test           # py_compile tools/*.py + cargo check
 make clean          # remove tools/runs/, tools/__pycache__/, and baseline_quick_*.json
+make distclean      # make clean + cargo clean in atomic_solver (full Rust rebuild)
 ```
 
 Iteration flow:

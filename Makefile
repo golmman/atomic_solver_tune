@@ -6,7 +6,7 @@
 # `make tune-short` automatically warm-starts CMA-ES from the previous best
 # config found in `latest/history.json`.
 
-.PHONY: build submodule baseline help clean test validate-quick validate-thorough tune tune-short
+.PHONY: build submodule baseline help clean distclean test validate-quick validate-thorough tune tune-short
 
 BENCH      := atomic_solver/target/release/examples/benchmark
 
@@ -36,6 +36,7 @@ help:
 	@echo "  validate-thorough validate the latest tuned config on thorough"
 	@echo "  test              quick syntax/check tests"
 	@echo "  clean             remove generated runs and baseline files"
+	@echo "  distclean         clean + remove atomic_solver/target/ (full Rust rebuild)"
 
 # ---------------------------------------------------------------------------
 # Shared recipes (DRY)
@@ -132,3 +133,6 @@ clean:
 	rm -rf tools/runs
 	rm -rf tools/__pycache__
 	rm -f baseline_quick*.json
+
+distclean: clean
+	cd atomic_solver && $(CARGO) clean
