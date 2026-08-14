@@ -182,6 +182,20 @@ run_...   240    15.6155   18,821,027   +21.02              0      0
 - Positive numbers mean fewer `child_evals` (better); negative means the run
   regressed.
 
+## Promoting a config for version control
+
+`tools/runs/` and `baseline_quick_*.json` are ignored by git because they are
+generated artifacts. If you want to commit a tuned config, run:
+
+```bash
+make promote
+```
+
+This copies `tools/runs/<commit>/latest/best_config.toml` to
+`best/best_config_<commit>.toml`, which you can then `git add` and commit. The
+filename includes the solver commit so it is clear which version of
+`atomic_solver` it belongs to.
+
 ## Cross-platform notes
 
 The benchmark binary (`atomic_solver/target/release/examples/benchmark`) is

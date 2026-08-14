@@ -6,7 +6,7 @@
 # `make tune-short` automatically warm-starts CMA-ES from the previous best
 # config found in `latest/history.json`.
 
-.PHONY: build submodule baseline help clean compare distclean test validate-quick validate-thorough tune tune-short
+.PHONY: build submodule baseline help clean compare distclean promote test validate-quick validate-thorough tune tune-short
 
 BENCH      := atomic_solver/target/release/examples/benchmark
 
@@ -17,6 +17,7 @@ BASELINE      := baseline_quick_$(SOLVER_COMMIT).json
 RUNS_DIR      := tools/runs/$(SOLVER_COMMIT)
 LATEST        := $(RUNS_DIR)/latest
 BEST          := $(LATEST)/best_config.toml
+PROMOTED      := best/best_config_$(SOLVER_COMMIT).toml
 
 SEED       ?=
 SEED_FLAG  := $(if $(SEED),--seed-config $(SEED))
@@ -35,6 +36,7 @@ help:
 	@echo "  validate-quick    validate tools/runs/<commit>/latest/best_config.toml on quick"
 	@echo "  validate-thorough validate the latest tuned config on thorough"
 	@echo "  compare           compare run summaries vs baseline and vs previous run"
+	@echo "  promote           copy latest/best_config.toml to best/best_config_<commit>.toml for VC"
 	@echo "  test              quick syntax/check tests"
 	@echo "  clean             remove generated runs and baseline files"
 	@echo "  distclean         clean + remove atomic_solver/target/ (full Rust rebuild)"
@@ -132,6 +134,16 @@ test:
 
 compare:
 	$(PYTHON) tools/compare_runs.py
+
+promote:
+	@if [ -f "$(BEST)" ]; then \
+		mkdir -p $(dir $(PROMOTED)); \
+		cp "$(BEST)" "$(PROMOTED)"; \
+		echo "Promoted $(BEST) -> $(PROMOTED)"; \
+	else \
+		echo "No tuned config at $(BEST). Run 'make tune' or 'make tune-short' first."; \
+		exit 1; \
+	fi
 
 clean:
 	rm -rf tools/runs
