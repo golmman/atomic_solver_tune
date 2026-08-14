@@ -1,7 +1,8 @@
 # Simple task runner for the atomic_solver CMA-ES parameter tuner.
 #
-# Each tuning run creates a timestamped directory under `tools/runs/` and
-# updates the `tools/runs/latest` symlink.  Repeating `make tune` or
+# Each tuning run creates a timestamped directory under
+# `tools/runs/<solver_commit>/` and updates the
+# `tools/runs/<solver_commit>/latest` symlink.  Repeating `make tune` or
 # `make tune-short` automatically warm-starts CMA-ES from the previous best
 # config found in `latest/history.json`.
 

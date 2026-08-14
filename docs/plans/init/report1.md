@@ -84,9 +84,11 @@ L = sum_i log(1 + child_evals_i / baseline_child_evals_i)
     + 10 * timeout_count
 ```
 
-`child_evals` is the deterministic metric preferred by the optimizer interface
-contract. The strong `P_WRONG` penalty reflects the contract's correctness
-priority.
+Every evaluated position contributes `log(1 + child_evals / baseline)`, then a
+single `P_WRONG = 100` penalty is added for each wrong outcome and a
+`P_TIMEOUT = 10` penalty for each timeout.  `child_evals` is the deterministic
+metric preferred by the optimizer interface contract, and the strong
+`P_WRONG` penalty reflects the contract's correctness priority.
 
 ### Resume / seed / cross-version support
 
@@ -133,8 +135,9 @@ results reproducible.
   reproduced 22,378,178 total `child_evals`, 0 wrong, 0 timeouts.
 - Manual `thorough` validation (timeout 5 s, runs 3) — 24/29 solved, 5 timeouts,
   0 wrong, 129,688,357 total `child_evals` vs 132,799,953 for the default.
-- A 12-evaluation `--seed-config` smoke test confirmed that seeding from an older
-  `best_config.toml` correctly sets the CMA-ES starting point.
+- A 12-evaluation `--seed-config` smoke test confirmed that seeding from a
+  `best_config.toml` correctly sets the CMA-ES starting point (missing keys fall
+  back to defaults; extra keys are ignored).
 
 ## Problems encountered and decisions
 

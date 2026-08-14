@@ -94,6 +94,7 @@ def save_best(output_dir, cma, best_eval_info):
     summary = {
         "best_f": cma.best_f,
         "best_x": cma.best_x,
+        "sigma": cma.sigma,
         "evals": cma.counteval,
         "params": params,
         "info": best_eval_info,
@@ -151,6 +152,10 @@ def main():
         x0 = encode(scorer)
         seed_info = {"source": "seed-config", "config": args.seed_config}
 
+    if len(x0) != n:
+        print(f"Warning: resume/seed vector length {len(x0)} != {n}; starting from zero vector")
+        x0 = [0.0] * n
+
     if sigma0 is None:
         sigma0 = 0.3
 
@@ -186,6 +191,8 @@ def main():
         fitnesses = [loss for loss, _ in results]
         details = [d for _, d in results]
 
+        gen_best_idx = min(range(len(fitnesses)), key=lambda i: fitnesses[i])
+        old_best_f = cma.best_f
         cma.tell(candidates, fitnesses)
 
         # Collect detail stats for logging.
@@ -193,8 +200,11 @@ def main():
         timeouts = sum(d.get("timeout", 0) for d in details)
         ok = sum(d.get("ok", 0) for d in details)
         total_child = sum(d.get("total_child_evals", 0) for d in details)
-        gen_best_idx = min(range(len(fitnesses)), key=lambda i: fitnesses[i])
-        best_eval_info = details[gen_best_idx]
+
+        # best_eval_info should describe the global best candidate, which is the
+        # generation-best candidate whenever the global best improved.
+        if cma.best_f < old_best_f:
+            best_eval_info = details[gen_best_idx]
 
         elapsed = time.time() - start
         print(

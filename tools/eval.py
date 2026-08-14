@@ -22,8 +22,9 @@ def load_baseline(path):
 def compute_loss(results, baseline, p_wrong=100.0, p_timeout=10.0):
     """Compute a scalar loss from benchmark results and a per-position baseline.
 
-    Lower is better.  `p_wrong` and `p_timeout` are added per position with the
-    corresponding status.
+    Lower is better.  Every position contributes `log(1 + child_evals / baseline)`;
+    `p_wrong` and `p_timeout` are added once per position with the corresponding
+    status.  This matches the documented formula and keeps `p_wrong` dominant.
     """
     loss = 0.0
     details = {"wrong": 0, "timeout": 0, "ok": 0, "efficiency": 0.0}
@@ -34,17 +35,18 @@ def compute_loss(results, baseline, p_wrong=100.0, p_timeout=10.0):
         child = max(r.get("child_evals", 0), 1)
         wrong = r.get("wrong", False)
         timeout = r.get("timeout", False)
+        ratio = child / base
 
+        loss += math.log(1.0 + ratio)
         if wrong:
             loss += p_wrong
             details["wrong"] += 1
         elif timeout:
-            loss += p_timeout * (1.0 + child / base)
+            loss += p_timeout
             details["timeout"] += 1
         else:
-            loss += math.log(1.0 + child / base)
             details["ok"] += 1
-            details["efficiency"] += child / base
+            details["efficiency"] += ratio
 
     return loss, details
 
@@ -60,9 +62,14 @@ def evaluate_candidate(
     p_timeout=10.0,
 ):
     """Run the benchmark for one latent vector and return (loss, details)."""
-    params = decode(x)
+    try:
+        params = decode(x)
+    except ValueError:
+        # Latent vector length does not match the current parameter set.
+        return float("inf"), {"status": "invalid-decode"}
+
     if params is None:
-        return 1e9, {"status": "invalid-decode"}
+        return float("inf"), {"status": "invalid-decode"}
 
     config_fd, config_path = tempfile.mkstemp(suffix=".toml", prefix="cmaes_cfg_")
     output_fd, output_path = tempfile.mkstemp(suffix=".json", prefix="cmaes_out_")
@@ -88,19 +95,31 @@ def evaluate_candidate(
             output_path,
         ]
 
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        # The benchmark has an internal per-position timeout, but give the whole
+        # subprocess a generous hard cap so a pathological config cannot hang the
+        # tuning run.
+        hard_timeout = timeout_sec * len(baseline) * runs + 60
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=hard_timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return float("inf"), {"status": "subprocess-timeout", "timeout": hard_timeout}
+
+        if proc.returncode != 0:
+            return float("inf"), {"status": "benchmark-failed", "returncode": proc.returncode}
 
         try:
             with open(output_path) as f:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             # If we cannot parse JSON, treat as a failed run.
-            return 1e9, {"status": "json-error", "returncode": proc.returncode}
+            return float("inf"), {"status": "json-error"}
 
         results = data.get("results", [])
         loss, details = compute_loss(results, baseline, p_wrong, p_timeout)

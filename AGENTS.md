@@ -44,7 +44,7 @@ make tune           # 1200-evaluation CMA-ES run (~1 h); auto-resumes from versi
 make validate-quick # benchmark tools/runs/<commit>/latest/best_config.toml on quick
 make validate-thorough
 make test           # py_compile tools/*.py + cargo check
-make clean          # remove tools/runs/ and baseline_quick.json
+make clean          # remove tools/runs/, tools/__pycache__/, and baseline_quick_*.json
 ```
 
 Iteration flow:

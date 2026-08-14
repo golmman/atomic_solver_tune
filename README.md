@@ -50,7 +50,7 @@ commit, so results from different solver versions do not overwrite each other.
 | `make validate-quick`    | Benchmark `tools/runs/<solver_commit>/latest/best_config.toml` on `quick`       |
 | `make validate-thorough` | Benchmark the latest tuned config on `thorough`                                 |
 | `make test`              | Compile-check the Python tools and `cargo check` the solver                     |
-| `make clean`             | Remove `tools/runs/` and `baseline_quick_*.json`                                |
+| `make clean`             | Remove `tools/runs/`, `tools/__pycache__/`, and `baseline_quick_*.json`          |
 
 ## Submodule note
 
