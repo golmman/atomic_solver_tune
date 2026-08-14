@@ -6,7 +6,7 @@
 # `make tune-short` automatically warm-starts CMA-ES from the previous best
 # config found in `latest/history.json`.
 
-.PHONY: build submodule baseline help clean compare distclean promote test validate-quick validate-thorough tune tune-short
+.PHONY: build submodule baseline help clean compare distclean promote test validate-quick validate-quick-summary validate-thorough validate-thorough-summary tune tune-short
 
 BENCH      := atomic_solver/target/release/examples/benchmark
 
@@ -33,8 +33,10 @@ help:
 	@echo "  tune              run a full CMA-ES tuning search (~1 h), auto-resumes from versioned latest"
 	@echo "  tune-short        run a 240-evaluation smoke test (~15 min), auto-resumes from versioned latest"
 	@echo "                    (pass SEED=path/to/best_config.toml to seed from an older version)"
-	@echo "  validate-quick    validate tools/runs/<commit>/latest/best_config.toml on quick"
-	@echo "  validate-thorough validate the latest tuned config on thorough"
+	@echo "  validate-quick         validate tools/runs/<commit>/latest/best_config.toml on quick"
+	@echo "  validate-quick-summary validate the latest tuned config on quick and print a summary"
+	@echo "  validate-thorough      validate the latest tuned config on thorough"
+	@echo "  validate-thorough-summary validate the latest tuned config on thorough and print a summary"
 	@echo "  compare           compare run summaries vs baseline and vs previous run"
 	@echo "  promote           copy latest/best_config.toml to best/best_config_<commit>.toml for VC"
 	@echo "  test              quick syntax/check tests"
@@ -49,6 +51,19 @@ help:
 define do_validate
 	@if [ -f "$(BEST)" ]; then \
 		$(BENCH) --config "$(BEST)" --suite $(1) --json --first-outcome $(2); \
+	else \
+		echo "No tuned config at $(BEST). Run 'make tune' or 'make tune-short' first."; \
+		exit 1; \
+	fi
+endef
+
+# $(1) suite, $(2) extra benchmark flags
+define do_validate_summary
+	@if [ -f "$(BEST)" ]; then \
+		out=$$(mktemp); \
+		$(BENCH) --config "$(BEST)" --suite $(1) --json --first-outcome $(2) > $$out 2>/dev/null; \
+		$(PYTHON) tools/summarize_validation.py $$out; \
+		rm -f $$out; \
 	else \
 		echo "No tuned config at $(BEST). Run 'make tune' or 'make tune-short' first."; \
 		exit 1; \
@@ -120,8 +135,14 @@ tune-short: baseline
 validate-quick: build
 	$(call do_validate,quick,--timeout 3 --runs 1)
 
+validate-quick-summary: build
+	$(call do_validate_summary,quick,--timeout 3 --runs 1)
+
 validate-thorough: build
 	$(call do_validate,thorough,--timeout 5 --runs 3)
+
+validate-thorough-summary: build
+	$(call do_validate_summary,thorough,--timeout 5 --runs 3)
 
 # ---------------------------------------------------------------------------
 # Misc

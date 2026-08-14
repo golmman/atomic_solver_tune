@@ -41,8 +41,10 @@ make build          # build the benchmark binary
 make baseline       # generate baseline_quick_<commit>.json from the default config
 make tune-short     # 240-evaluation CMA-ES smoke test (~15 min), creates a timestamped run dir under tools/runs/<commit>/ and updates latest/
 make tune           # 1200-evaluation CMA-ES run (~1 h); auto-resumes from versioned latest/history.json when present
-make validate-quick # benchmark tools/runs/<commit>/latest/best_config.toml on quick
-make validate-thorough
+make validate-quick         # benchmark tools/runs/<commit>/latest/best_config.toml on quick
+make validate-quick-summary # same as validate-quick but print a concise summary
+make validate-thorough      # validate the latest tuned config on thorough
+make validate-thorough-summary # same as validate-thorough but print a concise summary
 make compare        # compare run summaries vs baseline and vs previous run
 make promote        # copy latest/best_config.toml to best/best_config_<commit>.toml for VC
 make test           # py_compile tools/*.py + cargo check

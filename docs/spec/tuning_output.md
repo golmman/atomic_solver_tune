@@ -165,6 +165,44 @@ do not write a file by default; redirect or pipe the output if you want to keep
 it. The JSON schema is documented in
 `atomic_solver/docs/spec/optimizer_interface.md`.
 
+The benchmark also prints progress logs (e.g. `[bounded_search] chunk done`)
+to stderr while it runs. To see only the final JSON, redirect stderr:
+
+```bash
+make validate-thorough > tuned_thorough.json 2>/dev/null
+```
+
+For a concise human-readable summary without the noisy logs, use the
+`summary` targets:
+
+```bash
+make validate-quick-summary
+make validate-thorough-summary
+```
+
+To compare the tuned result against the default config, generate a baseline with
+the same suite/settings and use `tools/compare_validation.py`:
+
+```bash
+# baseline (default config)
+./atomic_solver/target/release/examples/benchmark \
+    --config atomic_solver/config.toml \
+    --suite thorough --json --first-outcome --timeout 5 --runs 3 \
+    > default_thorough.json 2>/dev/null
+
+# tuned config
+./atomic_solver/target/release/examples/benchmark \
+    --config tools/runs/<commit>/latest/best_config.toml \
+    --suite thorough --json --first-outcome --timeout 5 --runs 3 \
+    > tuned_thorough.json 2>/dev/null
+
+python3 tools/compare_validation.py tuned_thorough.json default_thorough.json
+```
+
+The `aggregates` section (or the comparison table) is what matters: `solved`
+should be at least as high as baseline, `wrong` should stay 0, and
+`total_child_evals` / `total_time` should be lower.
+
 ## Comparing multiple runs
 
 `make compare` reads every `run_<timestamp>/best_summary.json` under

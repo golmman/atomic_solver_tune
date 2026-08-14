@@ -47,8 +47,10 @@ commit, so results from different solver versions do not overwrite each other.
 | `make baseline`          | Generate `baseline_quick_<commit>.json` from the default `config.toml`          |
 | `make tune-short`        | Run a 240-evaluation CMA-ES smoke test (~15 min); writes to `tools/runs/<commit>/` and updates `latest` |
 | `make tune`              | Run a full 1200-evaluation CMA-ES search (~1 h); auto-resumes from versioned `latest` if present |
-| `make validate-quick`    | Benchmark `tools/runs/<solver_commit>/latest/best_config.toml` on `quick`       |
-| `make validate-thorough` | Benchmark the latest tuned config on `thorough`                                 |
+| `make validate-quick`             | Benchmark `tools/runs/<solver_commit>/latest/best_config.toml` on `quick`       |
+| `make validate-quick-summary`     | Same as `validate-quick` but prints a concise summary instead of raw JSON        |
+| `make validate-thorough`          | Benchmark the latest tuned config on `thorough`                                 |
+| `make validate-thorough-summary`  | Same as `validate-thorough` but prints a concise summary instead of raw JSON    |
 | `make compare`           | Compare all `run_*` summaries vs baseline and vs the previous run                |
 | `make promote`           | Copy `latest/best_config.toml` to `best/best_config_<commit>.toml` for version control |
 | `make test`              | Compile-check the Python tools and `cargo check` the solver                     |
