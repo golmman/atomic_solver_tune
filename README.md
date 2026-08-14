@@ -44,9 +44,12 @@ commit, so results from different solver versions do not overwrite each other.
 | ------------------------ | ------------------------------------------------------------------------------- |
 | `make submodule`         | Ensure `atomic_solver` is initialized and at the superproject's pinned commit   |
 | `make build`             | Build `atomic_solver/target/release/examples/benchmark`                         |
-| `make baseline`          | Generate `baseline_quick_<commit>.json` from the default `config.toml`          |
-| `make tune-short`        | Run a 240-evaluation CMA-ES smoke test (~15 min); writes to `tools/runs/<commit>/` and updates `latest` |
-| `make tune`              | Run a full 1200-evaluation CMA-ES search (~1 h); auto-resumes from versioned `latest` if present |
+| `make baseline`                 | Generate `baseline_quick_<commit>.json` from the default `config.toml`                |
+| `make baseline-thorough`        | Generate `baseline_thorough_<commit>.json` from the default `config.toml`            |
+| `make tune-short`             | Run a 240-evaluation CMA-ES smoke test on `quick` (~15 min)                            |
+| `make tune`                   | Run a full 1200-evaluation CMA-ES search on `quick` (~1 h)                           |
+| `make tune-thorough-short`    | Run a 240-evaluation CMA-ES smoke test on `thorough` (~30 min)                       |
+| `make tune-thorough`          | Run a full 1200-evaluation CMA-ES search on `thorough` (~3 h)                        |
 | `make validate-quick`             | Benchmark `tools/runs/<solver_commit>/latest/best_config.toml` on `quick`       |
 | `make validate-quick-summary`     | Same as `validate-quick` but prints a concise summary instead of raw JSON        |
 | `make validate-thorough`          | Benchmark the latest tuned config on `thorough`                                 |

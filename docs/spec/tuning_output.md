@@ -180,6 +180,20 @@ make validate-quick-summary
 make validate-thorough-summary
 ```
 
+## Thorough tuning
+
+By default, `make tune` and `make tune-short` optimize against the `quick`
+suite because it is fast. If the `quick` objective plateaus but the `thorough`
+suite still has unsolved positions, tune on `thorough`:
+
+```bash
+make tune-thorough-short   # 240 evals, ~30 min
+make tune-thorough         # 1200 evals, ~3 h
+```
+
+These targets use `tools/runs/<commit>/latest-thorough` for warm starts and
+produce `baseline_thorough_<commit>.json`.
+
 To compare the tuned result against the default config, generate a baseline with
 the same suite/settings and use `tools/compare_validation.py`:
 

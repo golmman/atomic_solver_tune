@@ -39,8 +39,11 @@ The root `Makefile` provides phony targets for the common steps:
 make submodule      # ensure the atomic_solver submodule is initialized and at the pinned commit
 make build          # build the benchmark binary
 make baseline       # generate baseline_quick_<commit>.json from the default config
-make tune-short     # 240-evaluation CMA-ES smoke test (~15 min), creates a timestamped run dir under tools/runs/<commit>/ and updates latest/
-make tune           # 1200-evaluation CMA-ES run (~1 h); auto-resumes from versioned latest/history.json when present
+make baseline-thorough # generate baseline_thorough_<commit>.json from the default config
+make tune-short     # 240-evaluation CMA-ES smoke test on quick (~15 min), creates a timestamped run dir under tools/runs/<commit>/ and updates latest/
+make tune           # 1200-evaluation CMA-ES run on quick (~1 h); auto-resumes from versioned latest/history.json when present
+make tune-thorough-short # 240-evaluation CMA-ES smoke test on thorough (~30 min), updates latest-thorough
+make tune-thorough  # 1200-evaluation CMA-ES run on thorough (~3 h); auto-resumes from latest-thorough/history.json
 make validate-quick         # benchmark tools/runs/<commit>/latest/best_config.toml on quick
 make validate-quick-summary # same as validate-quick but print a concise summary
 make validate-thorough      # validate the latest tuned config on thorough
