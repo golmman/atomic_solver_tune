@@ -43,6 +43,7 @@ make tune-short     # 240-evaluation CMA-ES smoke test (~15 min), creates a time
 make tune           # 1200-evaluation CMA-ES run (~1 h); auto-resumes from versioned latest/history.json when present
 make validate-quick # benchmark tools/runs/<commit>/latest/best_config.toml on quick
 make validate-thorough
+make compare        # compare run summaries vs baseline and vs previous run
 make test           # py_compile tools/*.py + cargo check
 make clean          # remove tools/runs/, tools/__pycache__/, and baseline_quick_*.json
 make distclean      # make clean + cargo clean in atomic_solver (full Rust rebuild)

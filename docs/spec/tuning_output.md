@@ -165,6 +165,23 @@ do not write a file by default; redirect or pipe the output if you want to keep
 it. The JSON schema is documented in
 `atomic_solver/docs/spec/optimizer_interface.md`.
 
+## Comparing multiple runs
+
+`make compare` reads every `run_<timestamp>/best_summary.json` under
+`tools/runs/<solver_commit>/`, compares each run's `total_child_evals` to the
+matching `baseline_quick_<commit>.json`, and shows the improvement from one run
+to the next. The columns are:
+
+```
+run       evals  best_f    child_evals  vs_base%  vs_prev%  wrong  to
+run_...   240    15.6155   18,821,027   +21.02              0      0
+```
+
+- `vs_base%`: percent reduction in `total_child_evals` versus the baseline.
+- `vs_prev%`: percent reduction versus the previous `run_*` directory.
+- Positive numbers mean fewer `child_evals` (better); negative means the run
+  regressed.
+
 ## Cross-platform notes
 
 The benchmark binary (`atomic_solver/target/release/examples/benchmark`) is
