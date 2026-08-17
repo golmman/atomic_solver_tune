@@ -22,9 +22,10 @@ BEST           := $(LATEST)/best_config.toml
 BEST_THOROUGH  := $(LATEST_THOROUGH)/best_config.toml
 PROMOTED       := best/best_config_$(SOLVER_COMMIT).toml
 
-# For thorough validation, prefer the thorough-tuned config if it exists;
-# otherwise fall back to the quick-tuned config.
+# For thorough validation and promotion, prefer the thorough-tuned config if it
+# exists; otherwise fall back to the quick-tuned config.
 VALIDATE_THOROUGH_BEST = $(shell if [ -f "$(BEST_THOROUGH)" ]; then echo "$(BEST_THOROUGH)"; else echo "$(BEST)"; fi)
+PROMOTE_BEST         := $(VALIDATE_THOROUGH_BEST)
 
 SEED       ?=
 SEED_FLAG  := $(if $(SEED),--seed-config $(SEED))
@@ -48,7 +49,7 @@ help:
 	@echo "  validate-thorough      validate the latest tuned config on thorough"
 	@echo "  validate-thorough-summary validate the latest tuned config on thorough and print a summary"
 	@echo "  compare           compare run summaries vs baseline and vs previous run"
-	@echo "  promote           copy latest/best_config.toml to best/best_config_<commit>.toml for VC"
+	@echo "  promote           copy the best tuned config (thorough if present, else quick) to best/best_config_<commit>.toml for VC"
 	@echo "  test              quick syntax/check tests"
 	@echo "  clean             remove generated runs and baseline files"
 	@echo "  distclean         clean + remove atomic_solver/target/ (full Rust rebuild)"
@@ -181,12 +182,12 @@ compare:
 	$(PYTHON) tools/compare_runs.py
 
 promote:
-	@if [ -f "$(BEST)" ]; then \
+	@if [ -f "$(PROMOTE_BEST)" ]; then \
 		mkdir -p $(dir $(PROMOTED)); \
-		cp "$(BEST)" "$(PROMOTED)"; \
-		echo "Promoted $(BEST) -> $(PROMOTED)"; \
+		cp "$(PROMOTE_BEST)" "$(PROMOTED)"; \
+		echo "Promoted $(PROMOTE_BEST) -> $(PROMOTED)"; \
 	else \
-		echo "No tuned config at $(BEST). Run 'make tune' or 'make tune-short' first."; \
+		echo "No tuned config at $(PROMOTE_BEST). Run 'make tune-thorough' or 'make tune' first."; \
 		exit 1; \
 	fi
 
