@@ -16,7 +16,7 @@ except ModuleNotFoundError:
 
 import cmaes
 import eval as eval_mod
-from params import SCORER_DEFAULTS, decode, encode, write_toml
+from params import TUNED_DEFAULTS, decode, encode, write_toml
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -84,7 +84,7 @@ def save_generation(output_dir, gen, cma, eval_details):
         json.dump(hist, f, indent=2)
 
 
-def save_best(output_dir, cma, best_eval_info, extra_evals=0):
+def save_best(output_dir, cma, best_eval_info, extra_evals=0, args=None):
     """Write the best config found so far to TOML and a summary JSON."""
     if cma.best_x is None:
         return
@@ -100,6 +100,11 @@ def save_best(output_dir, cma, best_eval_info, extra_evals=0):
         "params": params,
         "info": best_eval_info,
     }
+    if args is not None:
+        summary["suite"] = args.suite
+        summary["timeout"] = args.timeout
+        summary["runs"] = args.runs
+        summary["baseline"] = args.baseline
     with open(os.path.join(output_dir, "best_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
@@ -132,7 +137,7 @@ def main():
         ) from exc
 
     baseline = eval_mod.load_baseline(args.baseline)
-    n = len(SCORER_DEFAULTS)
+    n = len(TUNED_DEFAULTS)
 
     x0 = [0.0] * n
     sigma0 = args.sigma0
@@ -171,9 +176,13 @@ def main():
         x0 = encode(scorer)
         seed_info = {"source": "seed-config", "config": args.seed_config}
 
-    if len(x0) != n:
-        print(f"Warning: resume/seed vector length {len(x0)} != {n}; starting from zero vector")
-        x0 = [0.0] * n
+    if len(x0) < n:
+        missing = n - len(x0)
+        print(f"Padding resume/seed vector with {missing} zero(s) for new parameters")
+        x0 = x0 + [0.0] * missing
+    elif len(x0) > n:
+        print(f"Warning: resume/seed vector length {len(x0)} > {n}; truncating")
+        x0 = x0[:n]
 
     if sigma0 is None:
         sigma0 = 0.3
@@ -267,9 +276,9 @@ def main():
 
         save_generation(args.output_dir, gen, cma, details)
         if gen % 5 == 0 or cma.counteval >= args.max_evals:
-            save_best(args.output_dir, cma, best_eval_info, extra_evals)
+            save_best(args.output_dir, cma, best_eval_info, extra_evals, args)
 
-    save_best(args.output_dir, cma, best_eval_info, extra_evals)
+    save_best(args.output_dir, cma, best_eval_info, extra_evals, args)
     print("Done. Best config written to", os.path.join(args.output_dir, "best_config.toml"))
 
 

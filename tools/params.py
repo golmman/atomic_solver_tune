@@ -3,20 +3,22 @@
 import math
 from collections import OrderedDict
 
-# Piece values are kept fixed for the first tuning pass.
-PIECES = OrderedDict([
-    ("pawn", 100),
-    ("knight", 320),
-    ("bishop", 330),
-    ("rook", 500),
-    ("queen", 900),
-    ("commoner", 20_000),
+# Piece values. These are now part of the tuned parameter set, but they are
+# kept in a separate table because the Rust config groups them under
+# [scorer.pieces].
+PIECES_DEFAULTS = OrderedDict([
+    ("pieces.pawn", 100),
+    ("pieces.knight", 320),
+    ("pieces.bishop", 330),
+    ("pieces.rook", 500),
+    ("pieces.queen", 900),
+    ("pieces.commoner", 20_000),
 ])
 
 # Sensible first subset: all non-piece ScorerParams fields.
-# score_winning_capture and score_promotion are intentionally fixed in this pass
-# because they are huge, almost-categorical thresholds; tuning them safely
-# requires extra hierarchy care that is deferred.
+# score_winning_capture and score_promotion are intentionally fixed because they
+# are huge, almost-categorical thresholds; tuning them safely requires extra
+# hierarchy care that is deferred.
 SCORER_DEFAULTS = OrderedDict([
     ("score_capture", 5_000),
     ("capture_net_scale", 10),
@@ -39,6 +41,9 @@ SCORER_DEFAULTS = OrderedDict([
     ("and_approach_scale", 75),
 ])
 
+# Complete ordered list of parameters that the tuner optimises.
+TUNED_DEFAULTS = OrderedDict(list(SCORER_DEFAULTS.items()) + list(PIECES_DEFAULTS.items()))
+
 # Fixed thresholds from the default config.
 SCORE_PROMOTION = 1_000_000
 SCORE_WINNING_CAPTURE = 100_000_000
@@ -47,10 +52,9 @@ SCORE_WINNING_CAPTURE = 100_000_000
 MAX_COMPONENT = 10_000_000
 MAX_I32 = 2_147_483_647
 
-# Net material destroyed in the maximum non-winning capture:
-# removing every non-commoner enemy piece with a pawn.
-MAX_NON_COMMONER_VALUE = PIECES["queen"] + PIECES["rook"] + PIECES["bishop"] + PIECES["knight"]
-MAX_CAPTURE_NET = MAX_NON_COMMONER_VALUE - PIECES["pawn"]
+
+def _get_piece_value(raw, name):
+    return int(raw.get(name, PIECES_DEFAULTS[name]))
 
 
 def decode(x):
@@ -59,30 +63,58 @@ def decode(x):
     Returns None if the vector cannot be mapped to a valid config (overflow or
     unsatisfiable hierarchy).
     """
-    if len(x) != len(SCORER_DEFAULTS):
-        raise ValueError(f"latent vector length {len(x)} != {len(SCORER_DEFAULTS)}")
+    if len(x) != len(TUNED_DEFAULTS):
+        raise ValueError(f"latent vector length {len(x)} != {len(TUNED_DEFAULTS)}")
 
     raw = {}
-    for i, (name, default) in enumerate(SCORER_DEFAULTS.items()):
+    for i, (name, default) in enumerate(TUNED_DEFAULTS.items()):
         xi = x[i]
         v = round(default * math.exp(xi))
         if name.startswith("and_"):
             # Percent scale in [0, 100].
             v = min(100, max(0, v))
+        elif name.startswith("pieces."):
+            # Piece values must be strictly positive.
+            v = min(max(v, 1), MAX_COMPONENT)
         else:
             # Clamp to a safe range to avoid i32 overflow in quiet-move sums.
             v = min(max(v, 0), MAX_COMPONENT)
         raw[name] = v
 
-    # Enforce capture < promotion hierarchy by scaling both capture params.
+    # Enforce a sensible piece-value hierarchy:
+    #   pawn < knight, bishop
+    #   knight/bishop < rook < queen
+    #   commoner > sum(pawn..queen)
+    # If a latent sample violates this, clamp up the offending values.  This
+    # keeps configs valid without rejecting huge regions of the search space.
+    p_pawn = _get_piece_value(raw, "pieces.pawn")
+    p_knight = max(_get_piece_value(raw, "pieces.knight"), p_pawn + 1)
+    p_bishop = max(_get_piece_value(raw, "pieces.bishop"), p_pawn + 1)
+    p_rook = max(_get_piece_value(raw, "pieces.rook"), max(p_knight, p_bishop) + 1)
+    p_queen = max(_get_piece_value(raw, "pieces.queen"), p_rook + 1)
+    other_sum = p_pawn + p_knight + p_bishop + p_rook + p_queen
+    p_commoner = max(_get_piece_value(raw, "pieces.commoner"), other_sum + 1)
+
+    raw["pieces.pawn"] = p_pawn
+    raw["pieces.knight"] = p_knight
+    raw["pieces.bishop"] = p_bishop
+    raw["pieces.rook"] = p_rook
+    raw["pieces.queen"] = p_queen
+    raw["pieces.commoner"] = p_commoner
+
+    # Capture < promotion hierarchy. The maximum non-winning capture removes
+    # every non-commoner enemy piece with a pawn, so the net material swing
+    # depends on the tuned piece values.
     score_capture = raw["score_capture"]
     capture_net_scale = raw["capture_net_scale"]
-    max_capture_score = score_capture + capture_net_scale * MAX_CAPTURE_NET
+    max_non_commoner_value = p_queen + p_rook + p_bishop + p_knight
+    max_capture_net = max_non_commoner_value - p_pawn
+    max_capture_score = score_capture + capture_net_scale * max_capture_net
     if max_capture_score >= SCORE_PROMOTION:
         factor = (SCORE_PROMOTION - 1) / max_capture_score
         score_capture = int(score_capture * factor)
         capture_net_scale = int(capture_net_scale * factor)
-        max_capture_score = score_capture + capture_net_scale * MAX_CAPTURE_NET
+        max_capture_score = score_capture + capture_net_scale * max_capture_net
 
     if max_capture_score >= SCORE_PROMOTION or max_capture_score > MAX_I32:
         return None
@@ -105,15 +137,26 @@ def decode(x):
     return raw
 
 
+def _lookup_flat(params, name, default):
+    """Look up a possibly-nested value from a TOML-style params dict."""
+    if name in params:
+        return params[name]
+    if name.startswith("pieces."):
+        pieces = params.get("pieces", {})
+        if isinstance(pieces, dict):
+            return pieces.get(name.split(".", 1)[1], default)
+    return default
+
+
 def encode(params):
     """Inverse: map a raw params dict back to a latent vector (best-effort).
 
-    Missing keys default to the current SCORER_DEFAULTS value (latent 0.0).
+    Missing keys default to the current TUNED_DEFAULTS value (latent 0.0).
     Extra keys are ignored so an older config can seed a newer parameter set.
     """
     x = []
-    for name, default in SCORER_DEFAULTS.items():
-        v = params.get(name, default)
+    for name, default in TUNED_DEFAULTS.items():
+        v = _lookup_flat(params, name, default)
         if v is None:
             v = default
         try:
@@ -133,9 +176,11 @@ def write_toml(params, path):
         f.write("# Generated by CMA-ES tuner\n")
         f.write("[scorer]\n")
         for name, value in params.items():
-            # Only write the subset we are tuning; the Rust side uses serde(default).
-            if not name.startswith("pieces."):
-                f.write(f"{name} = {value}\n")
-        f.write("\n[scorer.pieces]\n")
-        for name, value in PIECES.items():
+            if name.startswith("pieces."):
+                continue
             f.write(f"{name} = {value}\n")
+        f.write("\n[scorer.pieces]\n")
+        for name, value in params.items():
+            if name.startswith("pieces."):
+                piece_name = name.split(".", 1)[1]
+                f.write(f"{piece_name} = {value}\n")

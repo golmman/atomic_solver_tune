@@ -63,7 +63,7 @@ Iteration flow:
   `make tune` or `make tune-short` on the same solver version automatically
   warm-starts CMA-ES from the previous best latent vector and sigma.
 - To tune a newer `atomic_solver` version, update and pin the submodule,
-  update `SCORER_DEFAULTS` in `tools/params.py` if the parameter set changed,
+  update `TUNED_DEFAULTS` in `tools/params.py` if the parameter set changed,
   run `make baseline`, and optionally seed from an older best config with
   `make tune-short SEED=tools/runs/<old_commit>/latest/best_config.toml`.
 
@@ -83,7 +83,7 @@ Key tuning facts:
   change the solver and invalidate baselines/tuning results.
 - `tools/tune.py --seed-config` and `make tune SEED=...` encode an older
   `best_config.toml` into the current latent space.  Missing keys fall back to
-  the current `SCORER_DEFAULTS`; extra keys are ignored, so a config from an
+  the current `TUNED_DEFAULTS`; extra keys are ignored, so a config from an
   older solver version can seed tuning for a newer one.
 
 ## Conversational Guidelines

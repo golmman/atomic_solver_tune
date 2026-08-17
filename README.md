@@ -83,7 +83,7 @@ cd ..
 git add atomic_solver
 git commit -m "bump atomic_solver"
 
-# 2. If ScorerParams fields changed, update SCORER_DEFAULTS in tools/params.py.
+# 2. If ScorerParams fields changed, update TUNED_DEFAULTS in tools/params.py.
 
 # 3. Generate a baseline for the new version.
 make baseline

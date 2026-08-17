@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare tuning run summaries against a baseline and each other."""
+"""Compare tuning run summaries against their own baselines and each other."""
 
 import argparse
 import json
@@ -32,6 +32,34 @@ def solver_commit():
         return "unknown"
 
 
+def resolve_baseline(summary, runs_dir_name):
+    """Find the baseline JSON to use for a run.
+
+    New summaries store the exact baseline path. Legacy summaries fall back to
+    a baseline named after the suite and solver commit.
+    """
+    baseline_str = summary.get("baseline")
+    if baseline_str:
+        baseline_path = Path(baseline_str)
+        if not baseline_path.is_absolute():
+            baseline_path = ROOT / baseline_path
+        if baseline_path.exists():
+            return baseline_path
+
+    suite = summary.get("suite", "quick")
+    # Prefer a baseline named after the suite recorded in the summary.
+    baseline_path = ROOT / f"baseline_{suite}_{runs_dir_name}.json"
+    if baseline_path.exists():
+        return baseline_path
+
+    # Legacy quick-baseline fallback.
+    candidates = sorted(ROOT.glob("baseline_quick_*.json"))
+    if candidates:
+        return candidates[0]
+
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare tuning run summaries for the same solver version."
@@ -41,12 +69,6 @@ def main():
         type=Path,
         default=None,
         help="directory containing run_* folders (default: tools/runs/<solver_commit>)",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help="baseline JSON file (default: baseline_quick_<commit>.json)",
     )
     args = parser.parse_args()
 
@@ -66,39 +88,25 @@ def main():
         print(f"No run_* directories in {runs_dir}")
         sys.exit(0)
 
-    # Locate baseline.
-    baseline_path = args.baseline
-    if baseline_path is None:
-        baseline_path = ROOT / f"baseline_quick_{runs_dir.name}.json"
-        if not baseline_path.exists():
-            candidates = sorted(ROOT.glob("baseline_quick_*.json"))
-            if candidates:
-                baseline_path = candidates[0]
-            else:
-                baseline_path = None
+    baselines = {}
+    prev_child = {}
+    rows = []
 
-    baseline_child = None
-    if baseline_path and baseline_path.exists():
-        baseline_child = load_baseline_total(baseline_path)
-        print(
-            f"Baseline: {baseline_path.relative_to(ROOT)}  "
-            f"total_child_evals={baseline_child:,}"
-        )
-    else:
-        print("No baseline found; pass --baseline to see vs-baseline improvement.")
-
-    print(
+    header = (
         f"{'run':<26} "
+        f"{'suite':>8} "
         f"{'evals':>6} "
         f"{'best_f':>10} "
         f"{'child_evals':>13} "
         f"{'vs_base%':>9} "
         f"{'vs_prev%':>9} "
+        f"{'solved':>6} "
         f"{'wrong':>5} "
         f"{'to':>3}"
     )
+    print(header)
+    print("-" * len(header))
 
-    prev_child = None
     for d in run_dirs:
         summary_path = d / "best_summary.json"
         if not summary_path.exists():
@@ -110,26 +118,39 @@ def main():
         evals = s.get("evals", 0)
         wrong = info.get("wrong", 0)
         timeouts = info.get("timeout", 0)
+        solved = info.get("ok", 0)
+        suite = s.get("suite", "quick")
+
+        baseline_path = resolve_baseline(s, runs_dir.name)
+        baseline_child = None
+        if baseline_path and baseline_path.exists():
+            if baseline_path not in baselines:
+                baselines[baseline_path] = load_baseline_total(baseline_path)
+            baseline_child = baselines[baseline_path]
 
         vs_base = ""
-        if baseline_child:
+        if baseline_child and baseline_child > 0:
             vs_base = f"{(baseline_child - child) / baseline_child * 100:+.2f}"
 
+        prev = prev_child.get(suite)
         vs_prev = ""
-        if prev_child is not None and prev_child > 0:
-            vs_prev = f"{(prev_child - child) / prev_child * 100:+.2f}"
+        if prev is not None and prev > 0:
+            vs_prev = f"{(prev - child) / prev * 100:+.2f}"
 
         print(
             f"{d.name:<26} "
+            f"{suite:>8} "
             f"{evals:>6} "
             f"{best_f:>10.4f} "
             f"{child:>13,} "
             f"{vs_base:>9} "
             f"{vs_prev:>9} "
+            f"{solved:>6} "
             f"{wrong:>5} "
             f"{timeouts:>3}"
         )
-        prev_child = child
+
+        prev_child[suite] = child
 
 
 if __name__ == "__main__":

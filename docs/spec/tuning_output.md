@@ -220,23 +220,27 @@ should be at least as high as baseline, `wrong` should stay 0, and
 ## Comparing multiple runs
 
 `make compare` reads every `run_<timestamp>/best_summary.json` under
-`tools/runs/<solver_commit>/`, compares each run's `total_child_evals` to the
-matching `baseline_quick_<commit>.json`, and shows the improvement from one run
-to the next. The columns are:
+`tools/runs/<solver_commit>/`. Each run is compared to the baseline it was
+tuned against (e.g. `baseline_quick_*.json` for `make tune` or
+`baseline_thorough_*.json` for `make tune-thorough`). `vs_prev%` compares a run
+to the previous run on the same suite, so quick and thorough runs do not
+interfere with each other. The columns are:
 
 ```
-run       evals  best_f    child_evals  vs_base%  vs_prev%  wrong  to
-run_...   240    15.6155   18,821,027   +21.02              0      0
+run                    suite    evals     best_f  child_evals  vs_base%  vs_prev%  solved  wrong   to
+run_20260814_135045    quick      240   15.6155    18,821,027   +21.02              23       0    0
+run_20260814_181113    quick     1201   15.3838    17,047,318   +28.46     +0.59     23       0    0
+run_20260814_200055  thorough      241   69.4832   133,974,192    +6.39              24       0    5
 ```
 
-- `vs_base%`: percent reduction in `total_child_evals` versus the baseline.
-- `vs_prev%`: percent reduction versus the previous `run_*` directory.
+- `vs_base%`: percent reduction in `total_child_evals` versus the run's own baseline.
+- `vs_prev%`: percent reduction versus the previous `run_*` directory on the same suite.
 - Positive numbers mean fewer `child_evals` (better); negative means the run
   regressed.
 
 ## Promoting a config for version control
 
-`tools/runs/` and `baseline_quick_*.json` are ignored by git because they are
+`tools/runs/` and `baseline_*.json` are ignored by git because they are
 generated artifacts. If you want to commit a tuned config, run:
 
 ```bash

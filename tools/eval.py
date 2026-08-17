@@ -16,6 +16,10 @@ def load_baseline(path):
     baseline = {}
     for r in data["results"]:
         baseline[r["name"]] = max(r["child_evals"], 1)
+    # If the candidate evaluates a position not in the baseline, use the
+    # average baseline value instead of 1 to avoid a wildly inflated ratio.
+    if baseline:
+        baseline["__mean__"] = sum(baseline.values()) / len(baseline)
     return baseline
 
 
@@ -31,7 +35,7 @@ def compute_loss(results, baseline, p_wrong=100.0, p_timeout=10.0):
 
     for r in results:
         name = r["name"]
-        base = baseline.get(name, 1)
+        base = baseline.get(name, baseline.get("__mean__", 1))
         child = max(r.get("child_evals", 0), 1)
         wrong = r.get("wrong", False)
         timeout = r.get("timeout", False)
@@ -97,8 +101,10 @@ def evaluate_candidate(
 
         # The benchmark has an internal per-position timeout, but give the whole
         # subprocess a generous hard cap so a pathological config cannot hang the
-        # tuning run.
-        hard_timeout = timeout_sec * len(baseline) * runs + 60
+        # tuning run. The -1 accounts for the __mean__ fallback key; the fixed
+        # 40-position minimum covers larger suites even if the baseline is small.
+        num_positions = max(len(baseline) - 1, 40)
+        hard_timeout = timeout_sec * num_positions * runs + 60
 
         try:
             proc = subprocess.run(
