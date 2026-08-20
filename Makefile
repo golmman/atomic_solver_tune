@@ -5,6 +5,10 @@
 # `tools/runs/<solver_commit>/latest` symlink.  Repeating `make tune` or
 # `make tune-short` automatically warm-starts CMA-ES from the previous best
 # config found in `latest/history.json`.
+#
+# `make validate-quick-summary` / `validate-thorough-summary` benchmark the
+# candidate and the previously promoted config several times (REPEATS, default
+# 3) to average out single-run noise, and print a promotion verdict.
 
 .PHONY: build submodule baseline baseline-thorough help clean compare distclean promote test validate-quick validate-quick-summary validate-thorough validate-thorough-summary tune tune-short tune-thorough tune-thorough-short
 
@@ -30,6 +34,15 @@ PROMOTE_BEST         := $(VALIDATE_THOROUGH_BEST)
 SEED       ?=
 SEED_FLAG  := $(if $(SEED),--seed-config $(SEED))
 
+# Override the CMA-ES initial step size, e.g. to restart a converged run with a
+# larger sigma: make tune-thorough SIGMA0=0.3
+SIGMA0       ?=
+SIGMA0_FLAG  := $(if $(SIGMA0),--sigma0 $(SIGMA0))
+
+# How many times each config is benchmarked to average out single-run noise in
+# validate-*-summary.  Override with: make validate-thorough-summary REPEATS=5
+REPEATS    ?= 3
+
 PYTHON     := python3
 CARGO      := cargo
 
@@ -44,10 +57,11 @@ help:
 	@echo "  tune-thorough     run a full CMA-ES tuning search (~3 h) on thorough, auto-resumes from versioned latest-thorough"
 	@echo "  tune-thorough-short run a 240-evaluation smoke test (~30 min) on thorough, auto-resumes from versioned latest-thorough"
 	@echo "                    (pass SEED=path/to/best_config.toml to seed from an older version)"
+	@echo "                    (pass SIGMA0=0.3 to override the CMA-ES initial step size, e.g. to restart a converged run)"
 	@echo "  validate-quick         validate tools/runs/<commit>/latest/best_config.toml on quick"
-	@echo "  validate-quick-summary validate the latest tuned config on quick and print a summary"
+	@echo "  validate-quick-summary averaged validation of latest config vs baseline and previous (promotion verdict)"
 	@echo "  validate-thorough      validate the latest tuned config on thorough"
-	@echo "  validate-thorough-summary validate the latest tuned config on thorough and print a summary"
+	@echo "  validate-thorough-summary averaged validation of latest config vs baseline and previous (promotion verdict)"
 	@echo "  compare           compare run summaries vs baseline and vs previous run"
 	@echo "  promote           copy the best tuned config (thorough if present, else quick) to best/best_config_<commit>.toml for VC"
 	@echo "  test              quick syntax/check tests"
@@ -68,17 +82,16 @@ define do_validate
 	fi
 endef
 
-# $(1) suite, $(2) extra benchmark flags, $(3) best config path
+# $(1) suite, $(2) timeout, $(3) runs, $(4) best config path, $(5) baseline, $(6) previous config
 define do_validate_summary
-	@if [ -f "$(3)" ]; then \
-		out=$$(mktemp); \
-		$(BENCH) --config "$(3)" --suite $(1) --json --first-outcome $(2) > $$out 2>/dev/null; \
-		$(PYTHON) tools/summarize_validation.py $$out; \
-		rm -f $$out; \
-	else \
-		echo "No tuned config at $(3). Run 'make tune' or 'make tune-thorough' first."; \
-		exit 1; \
-	fi
+	@$(PYTHON) tools/validate_candidate.py \
+		--benchmark $(BENCH) \
+		--config "$(4)" \
+		--suite $(1) \
+		--timeout $(2) --runs $(3) \
+		--repeats $(REPEATS) \
+		--baseline $(5) \
+		--previous $(6)
 endef
 
 # $(1) extra tune.py flags, $(2) baseline file, $(3) timeout, $(4) suite, $(5) latest symlink
@@ -91,7 +104,7 @@ define do_tune
 		RESUME="--resume $(5)/history.json"; \
 	fi && \
 	$(PYTHON) tools/tune.py --baseline $(2) --suite $(4) --timeout $(3) --workers 4 \
-		$(1) $$RESUME $(SEED_FLAG) --output-dir $$OUT && \
+		$(1) $$RESUME $(SEED_FLAG) $(SIGMA0_FLAG) --output-dir $$OUT && \
 	if [ -d "$(5)" ] && [ ! -L "$(5)" ]; then \
 		mv "$(5)" "$(5).bak"; \
 	fi && \
@@ -161,13 +174,13 @@ validate-quick: build
 	$(call do_validate,quick,--timeout 3 --runs 1,$(BEST))
 
 validate-quick-summary: build
-	$(call do_validate_summary,quick,--timeout 3 --runs 1,$(BEST))
+	$(call do_validate_summary,quick,3,1,$(BEST),$(BASELINE),$(PROMOTED))
 
 validate-thorough: build
 	$(call do_validate,thorough,--timeout 5 --runs 3,$(VALIDATE_THOROUGH_BEST))
 
 validate-thorough-summary: build
-	$(call do_validate_summary,thorough,--timeout 5 --runs 3,$(VALIDATE_THOROUGH_BEST))
+	$(call do_validate_summary,thorough,5,3,$(VALIDATE_THOROUGH_BEST),$(BASELINE_THOROUGH),$(PROMOTED))
 
 # ---------------------------------------------------------------------------
 # Misc
